@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+
+playwright
+crawl4ai
+
+sqlalchemy
+aiosqlite
+
+pydantic
+pydantic-settings
+python-dotenv
+
+httpx
+
+beautifulsoup4
+lxml

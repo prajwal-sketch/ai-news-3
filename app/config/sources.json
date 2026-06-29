@@ -1,0 +1,41 @@
+[
+  {
+    "id": 1,
+    "name": "OpenAI News",
+    "url": "https://openai.com/blog/",
+    "crawler": "simple_crawler",
+    "parser": "html_parser",
+    "crawl_frequency": "daily",
+    "enabled": true,
+    "priority": 1,
+    "category": "AI",
+    "allowed_paths": ["/blog/", "/news/"],
+    "last_crawled": null
+  },
+  {
+    "id": 2,
+    "name": "Google AI Blog",
+    "url": "https://ai.googleblog.com/",
+    "crawler": "rss_crawler",
+    "parser": "rss_parser",
+    "crawl_frequency": "daily",
+    "enabled": true,
+    "priority": 2,
+    "category": "AI",
+    "allowed_paths": ["/"],
+    "last_crawled": null
+  },
+  {
+    "id": 3,
+    "name": "Anthropic News",
+    "url": "https://www.anthropic.com/blog",
+    "crawler": "simple_crawler",
+    "parser": "html_parser",
+    "crawl_frequency": "weekly",
+    "enabled": true,
+    "priority": 3,
+    "category": "AI",
+    "allowed_paths": ["/blog/"],
+    "last_crawled": null
+  }
+]

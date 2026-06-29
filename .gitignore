@@ -1,0 +1,25 @@
+# Virtual Environment
+venv/
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+logs/*.log
+
+# Database
+*.db
+
+# Playwright
+playwright/.cache
+
+# OS
+.DS_Store
+Thumbs.db

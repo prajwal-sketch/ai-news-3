@@ -5,40 +5,21 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Any, Optional, Protocol
-
-from pydantic import BaseModel, Field
+from typing import Optional
 
 from app.crawler.crawl4ai_service import Crawl4AIService
 from app.crawler.playwright_service import PlaywrightService
 from app.deduplication.deduplication_engine import DeduplicationEngine
+from app.interfaces.article_repository import ArticleRepository
 from app.models.article import Article
 from app.models.crawl_job import CrawlJob
+from app.models.pipeline_result import PipelineResult
+from app.models.pipeline_statistics import PipelineStatistics
 from app.parser.article_parser import ArticleParser
 from app.registry.source_registry import SourceRegistry
 from app.scheduler.scheduler import Scheduler
 
-logger = logging.getLogger(__name__)
-
-
-class PipelineResult(BaseModel):
-    """Summary of a pipeline execution."""
-
-    started_at: datetime = Field(..., description="When the pipeline started")
-    finished_at: datetime = Field(..., description="When the pipeline finished")
-    jobs_processed: int = Field(..., description="Number of crawl jobs processed")
-    successful: int = Field(..., description="Number of successful jobs")
-    duplicates: int = Field(..., description="Number of duplicate articles skipped")
-    failed: int = Field(..., description="Number of failed jobs")
-    saved_articles: int = Field(..., description="Number of articles saved")
-    duration: float = Field(..., description="Pipeline duration in seconds")
-
-
-class ArticleRepository(Protocol):
-    """Placeholder repository interface for future persistence implementation."""
-
-    def save(self, article: Article) -> None:
-        """Persist an article."""
+logger = logging.getLogger("pipeline")
 
 
 class PipelineService:
@@ -71,7 +52,7 @@ class PipelineService:
         logger.info("pipeline started")
 
         jobs = self._scheduler.get_due_jobs(max_jobs=self._max_jobs)
-        stats = self._build_stats(jobs)
+        stats = self._build_stats()
 
         for job in jobs:
             self._run_job(job, stats)
@@ -81,17 +62,17 @@ class PipelineService:
             started_at=datetime.now(timezone.utc),
             finished_at=datetime.now(timezone.utc),
             jobs_processed=len(jobs),
-            successful=stats["successful"],
-            duplicates=stats["duplicates"],
-            failed=stats["failed"],
-            saved_articles=stats["saved_articles"],
+            successful=stats.successful,
+            duplicates=stats.duplicates,
+            failed=stats.failed,
+            saved_articles=stats.saved_articles,
             duration=finished_at - started_at,
         )
         self.last_result = result
         logger.info("pipeline completed", extra={"result": result.model_dump()})
         return result
 
-    def _run_job(self, job: CrawlJob, stats: dict[str, int]) -> None:
+    def _run_job(self, job: CrawlJob, stats: PipelineStatistics) -> None:
         """Process one crawl job and update statistics."""
         logger.info("job started", extra={"source": job.source.name})
 
@@ -109,29 +90,47 @@ class PipelineService:
             article = self._parser.parse(extraction_result)
             logger.info("parsing completed", extra={"source": article.source, "title": article.title})
 
-            duplicate_result = self._deduplication_engine.check(article, [])
+            existing_candidates = self._load_existing_candidates(article)
+            duplicate_result = self._deduplication_engine.check(article, existing_candidates)
             if duplicate_result.is_duplicate:
-                stats["duplicates"] += 1
-                logger.info("duplicate detected", extra={"reason": duplicate_result.reason})
+                stats.duplicates += 1
+                logger.info("duplicate detected", extra={"source": job.source.name, "reason": duplicate_result.reason, "article_title": article.title})
                 return
 
             self._save_article(article, stats)
-            stats["successful"] += 1
-        except Exception as exc:  # pragma: no cover - defensive fallback
-            stats["failed"] += 1
+            stats.successful += 1
+        except (ValueError, RuntimeError) as exc:
+            stats.failed += 1
+            logger.exception("job failed", extra={"source": job.source.name, "error": str(exc)})
+        except Exception as exc:  # pragma: no cover - defensive safety net
+            stats.failed += 1
             logger.exception("job failed", extra={"source": job.source.name, "error": str(exc)})
 
-    def _save_article(self, article: Article, stats: dict[str, int]) -> None:
+    def _save_article(self, article: Article, stats: PipelineStatistics) -> None:
         """Persist an article via the repository if available."""
         if self._repository is None:
-            stats["saved_articles"] += 1
+            stats.saved_articles += 1
             logger.info("article saved", extra={"title": article.title})
             return
 
         self._repository.save(article)
-        stats["saved_articles"] += 1
+        stats.saved_articles += 1
         logger.info("article saved", extra={"title": article.title})
 
-    def _build_stats(self, jobs: list[CrawlJob]) -> dict[str, int]:
+    def _load_existing_candidates(self, article: Article) -> list[Article]:
+    
+
+        if self._repository is None:
+            return []
+
+        try:
+            if hasattr(self._repository, "get_latest_articles"):
+                return self._repository.get_latest_articles(limit=200)
+
+        except Exception:
+            logger.exception("failed loading existing articles")
+
+        return []
+    def _build_stats(self) -> PipelineStatistics:
         """Create mutable statistics for the current pipeline run."""
-        return {"successful": 0, "duplicates": 0, "failed": 0, "saved_articles": 0}
+        return PipelineStatistics()

@@ -23,20 +23,30 @@ class ApplicationLifecycle:
 
     def on_startup(self, app: FastAPI) -> None:
         """Initialize database resources and validate core dependencies."""
+        logger.info("application startup initiated")
         try:
             self._database_manager.initialize()
+            logger.info("database initialization complete", extra={"database_url": self._database_manager._database_url})
         except Exception as exc:  # pragma: no cover - defensive boundary
             raise ConfigurationError(f"database initialization failed: {exc}") from exc
 
         try:
             self._registry.get_all_sources()
+            logger.info("source registry loaded", extra={"source_count": len(self._registry.get_all_sources())})
         except Exception as exc:  # pragma: no cover - defensive boundary
             raise RegistryError(f"registry validation failed: {exc}") from exc
 
-        app.state.container = {"database_manager": self._database_manager, "registry": self._registry}
-        logger.info("application startup complete")
+        container = dict(getattr(app.state, "container", {}))
+        container.update(
+            {
+                "database_manager": self._database_manager,
+                "registry": self._registry,
+            }
+        )
+        app.state.container = container
+        logger.info("application startup complete", extra={"container_keys": sorted(container.keys())})
 
     def on_shutdown(self, app: FastAPI) -> None:
         """Release resources held by the application lifecycle."""
         self._database_manager.close()
-        logger.info("application shutdown complete")
+        logger.info("application shutdown complete", extra={"database_url": self._database_manager._database_url})

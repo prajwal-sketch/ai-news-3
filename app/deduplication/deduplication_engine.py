@@ -11,7 +11,7 @@ from typing import Any, Iterable, Optional, Sequence
 from uuid import UUID
 
 from app.models.article import Article
-from app.deduplication.models import DeduplicationResult
+from app.models.deduplication_result import DeduplicationResult
 
 logger = logging.getLogger(__name__)
 

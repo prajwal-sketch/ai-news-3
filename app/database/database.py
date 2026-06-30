@@ -1,9 +1,9 @@
 """Database manager for SQLite persistence with SQLAlchemy."""
-
 from __future__ import annotations
 
 import logging
 from typing import Optional
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -24,8 +24,12 @@ class DatabaseManager:
         self._initialized = False
 
     def initialize(self) -> None:
-        """Create all tables when the database is first initialized."""
         try:
+            print("=" * 60)
+            print("DATABASE URL:", self._database_url)
+            print("CURRENT WORKING DIRECTORY:", Path.cwd())
+            print("DATABASE FILE:", Path("ai_news.db").resolve())
+            print("=" * 60)
             Base.metadata.create_all(self._engine)
             self._initialized = True
             logger.info("tables created")
